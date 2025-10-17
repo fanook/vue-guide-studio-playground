@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+
+packages/vue-guide-studio/dist/
+
+.DS_Store
+

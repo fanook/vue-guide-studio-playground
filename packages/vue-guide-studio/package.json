@@ -1,0 +1,43 @@
+{
+  "name": "vue-guide-studio",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Vue GuideStudio：集成可视化配置与 Driver.js 播放的引导插件",
+  "main": "dist/vue-guide-studio.cjs",
+  "module": "dist/vue-guide-studio.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/vue-guide-studio.mjs",
+      "require": "./dist/vue-guide-studio.cjs"
+    },
+    "./style.css": "./dist/vue-guide-studio.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch"
+  },
+  "keywords": [
+    "vue",
+    "driver.js",
+    "guide",
+    "tour",
+    "plugin"
+  ],
+  "author": "yifan",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "peerDependencies": {
+    "driver.js": "^1.3.0",
+    "vue": "^3.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "vite": "^7.1.7"
+  }
+}

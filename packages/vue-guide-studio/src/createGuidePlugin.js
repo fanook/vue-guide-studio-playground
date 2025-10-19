@@ -203,7 +203,9 @@ export const createGuidePlugin = (rawOptions = {}) => {
     hotkey: 'Shift+G',
     autoPlay: true,
     enableEditor: true,
+    showEntryButton: true,
     playOnce: false,
+    playedVersion: null,
     loadSteps: undefined,
     saveSteps: undefined,
     loadPlayed: undefined,
@@ -236,6 +238,7 @@ export const createGuidePlugin = (rawOptions = {}) => {
     canLoad: Boolean(loadHandler),
     canSave: Boolean(saveHandler),
     enableEditor: editingEnabled,
+    showEntryButton: options.showEntryButton !== false,
     playOnce: Boolean(options.playOnce),
     persistPlayed: Boolean(loadPlayedHandler || savePlayedHandler),
     defaultLocale,
@@ -251,14 +254,78 @@ export const createGuidePlugin = (rawOptions = {}) => {
   let listenersBound = false
   let highlightedElement = null
 
-  const hasPlayed = (routeKey) => playedRoutes.get(routeKey) === true
+  const resolvePlayedToken = (route, routeKey) => {
+    if (typeof options.playedVersion === 'function') {
+      try {
+        const value = options.playedVersion(route, routeKey)
+        return value === undefined || value === null ? true : value
+      } catch (error) {
+        console.warn('[VueGuideStudio] 解析 playedVersion 时出错，已回退为布尔标记', error)
+        return true
+      }
+    }
+    if (options.playedVersion !== undefined && options.playedVersion !== null) {
+      return options.playedVersion
+    }
+    return true
+  }
+
+  const getRouteForKey = (routeKey) => {
+    if (!routeKey) return null
+    if (routeCache.has(routeKey)) return routeCache.get(routeKey)
+    if (routeSnapshot && resolveRouteKey(routeSnapshot) === routeKey) return routeSnapshot
+    return null
+  }
+
+  const extractPlayedMark = (value) => {
+    if (value === undefined || value === null) return null
+    if (typeof value === 'object') {
+      if ('mark' in value) return value.mark
+      if ('token' in value) return value.token
+      if ('version' in value) return value.version
+      if ('value' in value) return value.value
+    }
+    return value
+  }
+
+  const setPlayedRecord = (routeKey, value) => {
+    if (!routeKey) return null
+    const route = getRouteForKey(routeKey)
+    const routeToken = resolvePlayedToken(route, routeKey)
+    const rawMark = extractPlayedMark(value)
+    const normalizedMark =
+      rawMark === undefined || rawMark === null || rawMark === false ? null : rawMark
+    const record = {
+      key: routeKey,
+      raw: value,
+      mark: normalizedMark,
+      token: routeToken,
+      matched: normalizedMark !== null && normalizedMark === routeToken,
+    }
+    playedRoutes.set(routeKey, record)
+    return record
+  }
+
+  const hasPlayed = (routeKey) => {
+    if (!routeKey) return false
+    const record = playedRoutes.get(routeKey)
+    if (!record) return false
+    const route = getRouteForKey(routeKey)
+    const token = resolvePlayedToken(route, routeKey)
+    if (record.token !== token) {
+      const refreshed = setPlayedRecord(routeKey, record.mark ?? record.raw)
+      return refreshed ? refreshed.matched : false
+    }
+    return record.matched === true
+  }
 
   const persistPlayed = (routeKey, value, { silent = false } = {}) => {
     if (!routeKey) return
-    playedRoutes.set(routeKey, value)
+    const record = setPlayedRecord(routeKey, value)
     if (!silent && savePlayedHandler) {
       const routeForKey = routeCache.get(routeKey) || routeSnapshot
-      Promise.resolve(savePlayedHandler(routeForKey, routeKey, value)).catch((error) => {
+      const payload = record ? (record.mark === null ? false : record.mark) : false
+      Promise.resolve(savePlayedHandler(routeForKey, routeKey, payload, record)).catch((error) => {
         console.error('[VueGuideStudio] 保存播放状态失败', error)
       })
     }
@@ -266,13 +333,15 @@ export const createGuidePlugin = (rawOptions = {}) => {
 
   const markPlayed = (routeKey) => {
     if (!routeKey || hasPlayed(routeKey)) return
-    persistPlayed(routeKey, true)
+    const route = getRouteForKey(routeKey)
+    const token = resolvePlayedToken(route, routeKey)
+    persistPlayed(routeKey, token)
   }
 
   const ensurePlayedState = async (route, routeKey) => {
     if (!routeKey) return false
     if (playedRoutes.has(routeKey)) {
-      return playedRoutes.get(routeKey)
+      return hasPlayed(routeKey)
     }
     let played = false
     if (loadPlayedHandler) {
@@ -282,8 +351,8 @@ export const createGuidePlugin = (rawOptions = {}) => {
         console.error('[VueGuideStudio] 读取播放状态失败', error)
       }
     }
-    persistPlayed(routeKey, Boolean(played), { silent: true })
-    return playedRoutes.get(routeKey)
+    persistPlayed(routeKey, played, { silent: true })
+    return hasPlayed(routeKey)
   }
 
   const captureHighlight = {
@@ -697,6 +766,12 @@ export const createGuidePlugin = (rawOptions = {}) => {
     hasPlayed(routeKey) {
       const key = routeKey || state.activeRouteKey
       return key ? hasPlayed(key) : false
+    },
+    getPlayedMark(routeKey) {
+      const key = routeKey || state.activeRouteKey
+      if (!key) return null
+      const record = playedRoutes.get(key)
+      return record ? record.mark : null
     },
   }
 

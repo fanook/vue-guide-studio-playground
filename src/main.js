@@ -49,11 +49,29 @@ const writePlayedCache = (data) => {
   }
 }
 
+const hashSteps = (steps) => {
+  const payload = Array.isArray(steps) ? steps : []
+  if (!payload.length) return 'empty'
+  const serialized = JSON.stringify(payload)
+  let hash = 0
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash = (hash * 31 + serialized.charCodeAt(index)) >>> 0
+  }
+  return `v${hash.toString(16)}`
+}
+
+const resolvePlayedMark = (routeKey) => {
+  const cache = readGuideCache()
+  const steps = cache[routeKey] || []
+  return hashSteps(steps)
+}
+
 const guidePlugin = createGuidePlugin({
   router,
   hotkey: 'Shift+G',
   enableEditor: true,
   playOnce: true,
+  playedVersion: (_route, routeKey) => resolvePlayedMark(routeKey),
   loadSteps: (_route, routeKey) => {
     const cache = readGuideCache()
     return cache[routeKey] || []
@@ -65,12 +83,16 @@ const guidePlugin = createGuidePlugin({
   },
   loadPlayed: (_route, routeKey) => {
     const cache = readPlayedCache()
-    return Boolean(cache[routeKey])
+    const value = cache[routeKey]
+    if (value === undefined || value === null) return false
+    if (typeof value === 'object') return value
+    return { mark: value }
   },
-  savePlayed: (_route, routeKey, played) => {
+  savePlayed: (_route, routeKey, mark, meta) => {
     const cache = readPlayedCache()
-    if (played) {
-      cache[routeKey] = true
+    const payload = meta?.mark ?? mark
+    if (payload) {
+      cache[routeKey] = payload
     } else {
       delete cache[routeKey]
     }

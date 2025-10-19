@@ -5,6 +5,7 @@ import { useGuide } from './useGuide'
 const { state, actions, hotkeyDisplay, capabilities } = useGuide()
 
 const sortedSteps = computed(() => state.steps)
+const showEntryButton = computed(() => capabilities.showEntryButton !== false)
 
 const captureMessage = computed(() => {
   if (!state.captureNext) return ''
@@ -158,12 +159,12 @@ const handleScrollToggle = (id, checked) => {
   <teleport v-if="editorEnabled" to="body">
     <div class="guide-shell" aria-live="polite">
       <button
-        v-if="!state.isEditing"
+        v-if="!state.isEditing && showEntryButton"
         type="button"
         class="guide-launch"
         @click="actions.toggleEditing(true)"
       >
-        页面引导
+        页面引导配置
       </button>
 
       <section v-else class="guide-panel" role="dialog" aria-modal="true">
